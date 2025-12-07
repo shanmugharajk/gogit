@@ -1,13 +1,12 @@
 package main
 
 import (
-	"os"
-
 	"github.com/shanmugharajk/gogit/internal/commands"
 	"github.com/spf13/cobra"
 )
 
-func main() {
+// NewRootCmd creates the root command.
+func NewRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "gogit",
 		Short: "A Go implementation of Git",
@@ -18,7 +17,5 @@ It serves as both an educational tool and a library for working with Git reposit
 	// Add subcommands
 	cmd.AddCommand(commands.NewInitCmd())
 
-	if err := cmd.Execute(); err != nil {
-		os.Exit(1)
-	}
+	return cmd
 }
