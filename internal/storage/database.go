@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/shanmugharajk/gogit/internal/file"
 	"github.com/shanmugharajk/gogit/internal/object"
 )
 
@@ -50,7 +51,7 @@ func (db *Database) writeObject(oid string, content []byte) error {
 	objPath := filepath.Join(objDir, oid[2:])
 
 	// Ensure directory exists, create if necessary
-	if err := os.MkdirAll(objDir, 0o755); err != nil {
+	if err := os.MkdirAll(objDir, file.ModeDir); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 

@@ -2,9 +2,14 @@ package commands
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
+	"github.com/shanmugharajk/gogit/internal/commit"
+	"github.com/shanmugharajk/gogit/internal/file"
 	"github.com/shanmugharajk/gogit/internal/object"
 	"github.com/shanmugharajk/gogit/internal/storage"
 	"github.com/shanmugharajk/gogit/internal/workspace"
@@ -24,7 +29,6 @@ This command reads all files in the workspace and stores them as blob objects in
 	return cmd
 }
 
-// runCommit executes the commit command.
 func runCommit(cmd *cobra.Command, args []string) error {
 	// Get the current working directory
 	cwd, err := os.Getwd()
@@ -37,18 +41,20 @@ func runCommit(cmd *cobra.Command, args []string) error {
 	dbPath := filepath.Join(gitPath, "objects")
 
 	// Initialize workspace and database
-	ws := workspace.New(cwd)
+	workspace := workspace.New(cwd)
 	db := storage.New(dbPath)
 
 	// List all files in the workspace
-	files, err := ws.ListFiles()
+	files, err := workspace.ListFiles()
 	if err != nil {
 		return fmt.Errorf("failed to list workspace files: %w", err)
 	}
 
+	entries := make([]object.Entry, 0, len(files))
+
 	// Store each file as a blob object
 	for _, filePath := range files {
-		data, err := ws.ReadFile(filePath)
+		data, err := workspace.ReadFile(filePath)
 		if err != nil {
 			return fmt.Errorf("failed to read file %s: %w", filePath, err)
 		}
@@ -58,7 +64,45 @@ func runCommit(cmd *cobra.Command, args []string) error {
 		if err := db.Store(blob); err != nil {
 			return fmt.Errorf("failed to store blob for %s: %w", filePath, err)
 		}
+
+		entries = append(entries, *object.NewEntry(filePath, blob.GetOID()))
 	}
+
+	tree := object.NewTree(entries)
+	if err := db.Store(tree); err != nil {
+		return fmt.Errorf("failed to store tree: %w", err)
+	}
+
+	// Get author info from environment
+	name := os.Getenv("GIT_AUTHOR_NAME")
+	email := os.Getenv("GIT_AUTHOR_EMAIL")
+	author := commit.NewAuthor(name, email, time.Now())
+
+	// Read commit message from stdin
+	messageBytes, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		return fmt.Errorf("failed to read commit message: %w", err)
+	}
+	message := string(messageBytes)
+
+	// Create and store commit
+	commitObj := commit.NewCommit(tree.GetOID(), author, message)
+	if err := db.Store(commitObj); err != nil {
+		return fmt.Errorf("failed to store commit: %w", err)
+	}
+
+	// Update HEAD
+	headPath := filepath.Join(gitPath, "HEAD")
+	headContent := fmt.Appendf(nil, "%s\n", commitObj.GetOID())
+	if err := os.WriteFile(headPath, headContent, file.ModeFile); err != nil {
+		return fmt.Errorf("failed to write HEAD: %w", err)
+	}
+
+	firstLine := message
+	if i := strings.IndexByte(message, '\n'); i >= 0 {
+		firstLine = message[:i]
+	}
+	fmt.Printf("[(root-commit) %s] %s\n", commitObj.GetOID(), firstLine)
 
 	return nil
 }
