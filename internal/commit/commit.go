@@ -26,12 +26,19 @@ func (c *Commit) Type() string {
 func (c *Commit) Bytes() []byte {
 	authorBytes := c.Author.Bytes()
 
-	return fmt.Appendf(nil, "tree %s\nparent %s\nauthor %s\ncommitter %s\n\n%s",
-		c.TreeOID,
-		c.ParentOID,
+	var result []byte
+	result = fmt.Appendf(result, "tree %s\n", c.TreeOID)
+
+	if c.ParentOID != "" {
+		result = fmt.Appendf(result, "parent %s\n", c.ParentOID)
+	}
+
+	result = fmt.Appendf(result, "author %s\ncommitter %s\n\n%s",
 		string(authorBytes),
 		string(authorBytes),
 		c.Message)
+
+	return result
 }
 
 func NewCommit(parentOID string, treeOID string, author *Author, message string) *Commit {

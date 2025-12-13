@@ -56,7 +56,7 @@ func runCommit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to list workspace files: %w", err)
 	}
 
-	entries := make([]object.Entry, 0, len(files))
+	entries := make([]*object.Entry, 0, len(files))
 
 	// Store each file as a blob object
 	for _, filePath := range files {
@@ -71,12 +71,30 @@ func runCommit(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to store blob for %s: %w", filePath, err)
 		}
 
-		entries = append(entries, *object.NewEntry(filePath, blob.GetOID()))
+		// Get file stats
+		stat, err := workspace.StatFile(filePath)
+		if err != nil {
+			return fmt.Errorf("failed to stat file %s: %w", filePath, err)
+		}
+
+		entries = append(entries, object.NewEntry(filePath, blob.GetOID(), stat))
 	}
 
-	tree := object.NewTree(entries)
-	if err := db.Store(tree); err != nil {
-		return fmt.Errorf("failed to store tree: %w", err)
+	// Build tree hierarchy
+	root := object.Build(entries)
+
+	// Traverse and store all trees
+	var storeErr error
+	root.Traverse(func(tree *object.Tree) {
+		if storeErr != nil {
+			return // Skip if we already encountered an error
+		}
+		if err := db.Store(tree); err != nil {
+			storeErr = fmt.Errorf("failed to store tree: %w", err)
+		}
+	})
+	if storeErr != nil {
+		return storeErr
 	}
 
 	// Get author info from environment
@@ -92,7 +110,7 @@ func runCommit(cmd *cobra.Command, args []string) error {
 	message := string(messageBytes)
 
 	// Create and store commit
-	commitObj := commit.NewCommit(parentOID, tree.GetOID(), author, message)
+	commitObj := commit.NewCommit(parentOID, root.GetOID(), author, message)
 	if err := db.Store(commitObj); err != nil {
 		return fmt.Errorf("failed to store commit: %w", err)
 	}
