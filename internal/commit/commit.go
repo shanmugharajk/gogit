@@ -5,9 +5,10 @@ import "fmt"
 type Commit struct {
 	oid string
 
-	TreeOID string
-	Author  *Author
-	Message string
+	ParentOID string
+	TreeOID   string
+	Author    *Author
+	Message   string
 }
 
 func (c *Commit) SetOID(oid string) {
@@ -25,17 +26,19 @@ func (c *Commit) Type() string {
 func (c *Commit) Bytes() []byte {
 	authorBytes := c.Author.Bytes()
 
-	return fmt.Appendf(nil, "tree %s\nauthor %s\ncommitter %s\n\n%s",
+	return fmt.Appendf(nil, "tree %s\nparent %s\nauthor %s\ncommitter %s\n\n%s",
 		c.TreeOID,
+		c.ParentOID,
 		string(authorBytes),
 		string(authorBytes),
 		c.Message)
 }
 
-func NewCommit(treeOID string, author *Author, message string) *Commit {
+func NewCommit(parentOID string, treeOID string, author *Author, message string) *Commit {
 	return &Commit{
-		TreeOID: treeOID,
-		Author:  author,
-		Message: message,
+		ParentOID: parentOID,
+		TreeOID:   treeOID,
+		Author:    author,
+		Message:   message,
 	}
 }

@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/shanmugharajk/gogit/internal/commit"
-	"github.com/shanmugharajk/gogit/internal/file"
 	"github.com/shanmugharajk/gogit/internal/object"
+	"github.com/shanmugharajk/gogit/internal/refs"
 	"github.com/shanmugharajk/gogit/internal/storage"
 	"github.com/shanmugharajk/gogit/internal/workspace"
 	"github.com/spf13/cobra"
@@ -40,9 +40,15 @@ func runCommit(cmd *cobra.Command, args []string) error {
 	gitPath := filepath.Join(cwd, ".git")
 	dbPath := filepath.Join(gitPath, "objects")
 
-	// Initialize workspace and database
+	// Initialize workspace, storage, and refs management
 	workspace := workspace.New(cwd)
 	db := storage.New(dbPath)
+	refsStore := refs.New(gitPath)
+
+	parentOID, err := refsStore.ReadHead()
+	if err != nil {
+		return fmt.Errorf("failed to read HEAD: %w", err)
+	}
 
 	// List all files in the workspace
 	files, err := workspace.ListFiles()
@@ -86,23 +92,24 @@ func runCommit(cmd *cobra.Command, args []string) error {
 	message := string(messageBytes)
 
 	// Create and store commit
-	commitObj := commit.NewCommit(tree.GetOID(), author, message)
+	commitObj := commit.NewCommit(parentOID, tree.GetOID(), author, message)
 	if err := db.Store(commitObj); err != nil {
 		return fmt.Errorf("failed to store commit: %w", err)
 	}
 
-	// Update HEAD
-	headPath := filepath.Join(gitPath, "HEAD")
-	headContent := fmt.Appendf(nil, "%s\n", commitObj.GetOID())
-	if err := os.WriteFile(headPath, headContent, file.ModeFile); err != nil {
-		return fmt.Errorf("failed to write HEAD: %w", err)
+	if err := refsStore.UpdateHead(commitObj.GetOID()); err != nil {
+		return fmt.Errorf("failed to update HEAD: %w", err)
 	}
 
 	firstLine := message
 	if i := strings.IndexByte(message, '\n'); i >= 0 {
 		firstLine = message[:i]
 	}
-	fmt.Printf("[(root-commit) %s] %s\n", commitObj.GetOID(), firstLine)
+	label := ""
+	if parentOID == "" {
+		label = "(root-commit)"
+	}
+	fmt.Printf("[%s %s] %s\n", label, commitObj.GetOID(), firstLine)
 
 	return nil
 }
