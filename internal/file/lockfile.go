@@ -60,6 +60,19 @@ func (l *Lockfile) Write(content string) error {
 	return nil
 }
 
+// WriteBytes writes the supplied bytes to the locked file.
+func (l *Lockfile) WriteBytes(content []byte) error {
+	if err := l.ensureLock(); err != nil {
+		return err
+	}
+
+	if _, err := l.file.Write(content); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Commit finalizes the lock by closing the handle and renaming the lock file.
 func (l *Lockfile) Commit() error {
 	if err := l.ensureLock(); err != nil {

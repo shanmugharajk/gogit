@@ -16,6 +16,7 @@ It serves as both an educational tool and a library for working with Git reposit
 
 	// Add subcommands
 	cmd.AddCommand(commands.NewInitCmd())
+	cmd.AddCommand(commands.NewAddCmd())
 	cmd.AddCommand(commands.NewCommitCmd())
 
 	return cmd
